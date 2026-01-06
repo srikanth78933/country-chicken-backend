@@ -1,51 +1,107 @@
 pipeline {
     agent any
-    
+
+    tools {
+        maven 'maven3.9.12'
+        jdk 'java17'
+    }
+
+    environment {
+        APP_NAME        = 'country-chicken-backend'
+        NEXUS_URL       = 'nexus.yourcompany.com'
+        MAVEN_REPO      = 'maven-releases'
+        DOCKER_REPO     = 'docker-releases'
+        GROUP_ID        = 'com.countrychicken'
+        VERSION         = "${BUILD_NUMBER}"
+        JAR_NAME        = 'country-chicken-backend-1.0.0.jar'
+    }
+
+    options {
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 20, unit: 'MINUTES')
+    }
+
     stages {
-        stage('Step 1: Get Code') {
+
+        stage('Checkout') {
             steps {
-                echo 'Getting code from Git...'
-                checkout scm
+                git branch: 'main',
+                    url: 'https://github.com/your-org/country-chicken-backend.git'
             }
         }
-        
-        stage('Step 2: Build') {
+
+        stage('Build JAR') {
             steps {
-                echo 'Building with Maven...'
-                sh 'mvn clean compile'
+                sh 'mvn clean package -DskipTests'
             }
         }
-        
-        stage('Step 3: Test') {
+
+        stage('Upload JAR to Nexus') {
             steps {
-                echo 'Running tests...'
-                sh 'mvn test'
+                nexusArtifactUploader(
+                    nexusVersion: 'nexus3',
+                    protocol: 'https',
+                    nexusUrl: "${NEXUS_URL}",
+                    groupId: "${GROUP_ID}",
+                    version: "${VERSION}",
+                    repository: "${MAVEN_REPO}",
+                    credentialsId: 'nexus-credentials',
+                    artifacts: [
+                        [
+                            artifactId: "${APP_NAME}",
+                            classifier: '',
+                            file: "target/${JAR_NAME}",
+                            type: 'jar'
+                        ]
+                    ]
+                )
             }
         }
-        
-        stage('Step 4: Create JAR') {
+
+        stage('Build Docker Image') {
             steps {
-                echo 'Creating JAR file...'
-                sh 'mvn package -DskipTests'
-                
-                script {
-                    // Show what was created
-                    sh 'ls -la target/*.jar'
+                sh """
+                  docker build \
+                  -t ${NEXUS_URL}/${DOCKER_REPO}/${APP_NAME}:${VERSION} \
+                  -t ${NEXUS_URL}/${DOCKER_REPO}/${APP_NAME}:latest .
+                """
+            }
+        }
+
+        stage('Push Docker Image to Nexus') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-nexus-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh """
+                      echo ${DOCKER_PASS} | docker login ${NEXUS_URL} \
+                      -u ${DOCKER_USER} --password-stdin
+
+                      docker push ${NEXUS_URL}/${DOCKER_REPO}/${APP_NAME}:${VERSION}
+                      docker push ${NEXUS_URL}/${DOCKER_REPO}/${APP_NAME}:latest
+
+                      docker logout ${NEXUS_URL}
+                    """
                 }
             }
         }
-        
-        stage('Step 5: Save JAR') {
-            steps {
-                echo 'Saving JAR file...'
-                archiveArtifacts 'target/*.jar'
-            }
-        }
     }
-    
+
     post {
+        success {
+            echo "✅ Build & Push Successful"
+        }
+
+        failure {
+            echo "❌ Build Failed"
+        }
+
         always {
-            echo 'Pipeline done!'
+            sh 'docker system prune -f'
+            cleanWs()
         }
     }
 }
