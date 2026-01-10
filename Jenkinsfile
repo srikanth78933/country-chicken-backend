@@ -7,13 +7,19 @@ pipeline {
     }
 
     environment {
-        APP_NAME        = 'country-chicken-backend'
-        NEXUS_URL       = '3.89.152.50:8081'
-        MAVEN_REPO      = 'maven-releases'
-        DOCKER_REPO     = 'docker-releases'
-        GROUP_ID        = 'com.countrychicken'
-        VERSION         = "${BUILD_NUMBER}"
-        JAR_NAME        = 'country-chicken-backend-1.0.0.jar'
+        APP_NAME           = 'country-chicken-backend'
+
+        // Nexus URLs
+        NEXUS_MAVEN_URL    = '3.89.152.50:8081'
+        NEXUS_DOCKER_URL   = '3.89.152.50:8082'
+
+        // Repositories
+        MAVEN_REPO         = 'maven-releases'
+        DOCKER_REPO        = 'docker-releases'
+
+        GROUP_ID           = 'com.countrychicken'
+        VERSION            = "${BUILD_NUMBER}"
+        JAR_NAME           = 'country-chicken-backend-1.0.0.jar'
     }
 
     stages {
@@ -36,7 +42,7 @@ pipeline {
                 nexusArtifactUploader(
                     nexusVersion: 'nexus3',
                     protocol: 'http',
-                    nexusUrl: "${NEXUS_URL}",
+                    nexusUrl: "${NEXUS_MAVEN_URL}",
                     groupId: "${GROUP_ID}",
                     version: "${VERSION}",
                     repository: "${MAVEN_REPO}",
@@ -57,8 +63,8 @@ pipeline {
             steps {
                 sh """
                   docker build \
-                  -t ${NEXUS_URL}/${DOCKER_REPO}/${APP_NAME}:${VERSION} \
-                  -t ${NEXUS_URL}/${DOCKER_REPO}/${APP_NAME}:latest .
+                  -t ${NEXUS_DOCKER_URL}/${DOCKER_REPO}/${APP_NAME}:${VERSION} \
+                  -t ${NEXUS_DOCKER_URL}/${DOCKER_REPO}/${APP_NAME}:latest .
                 """
             }
         }
@@ -70,15 +76,15 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh """
-                      echo ${DOCKER_PASS} | docker login ${NEXUS_URL} \
-                      -u ${DOCKER_USER} --password-stdin
+                    sh '''
+                      echo "$DOCKER_PASS" | docker login ${NEXUS_DOCKER_URL} \
+                      -u "$DOCKER_USER" --password-stdin
 
-                      docker push ${NEXUS_URL}/${DOCKER_REPO}/${APP_NAME}:${VERSION}
-                      docker push ${NEXUS_URL}/${DOCKER_REPO}/${APP_NAME}:latest
+                      docker push ${NEXUS_DOCKER_URL}/${DOCKER_REPO}/${APP_NAME}:${VERSION}
+                      docker push ${NEXUS_DOCKER_URL}/${DOCKER_REPO}/${APP_NAME}:latest
 
-                      docker logout ${NEXUS_URL}
-                    """
+                      docker logout ${NEXUS_DOCKER_URL}
+                    '''
                 }
             }
         }
