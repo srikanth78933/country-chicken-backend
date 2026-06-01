@@ -9,8 +9,9 @@ pipeline {
     environment {
         APP_NAME         = 'country-chicken-backend'
 
-        NEXUS_MAVEN_URL  = '3.89.152.50:8081'
-        NEXUS_DOCKER_URL = '3.89.152.50:8082'
+        NEXUS_MAVEN_URL  = '13.60.24.108:8081'   // ✅ FIXED
+        NEXUS_DOCKER_URL = '13.60.24.108:8082'   // ✅ FIXED
+
 
         MAVEN_REPO       = 'maven-releases'
         DOCKER_REPO      = 'docker-releases'
@@ -24,8 +25,8 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'test',
-                    url: 'https://github.com/srikanth78933/country-chicken-backend.git'
+                git branch: 'project-1',
+                    url: 'https://github.com/Kavya-C28/country-chicken-backend-.git'
             }
         }
 
@@ -36,7 +37,6 @@ pipeline {
                         script: "mvn help:evaluate -Dexpression=project.version -q -DforceStdout",
                         returnStdout: true
                     ).trim()
-
                     if (!VERSION) {
                         error "❌ Version not found from pom.xml"
                     }
@@ -80,7 +80,7 @@ pipeline {
                 sh """
                 docker build \
                   -t ${NEXUS_DOCKER_URL}/${DOCKER_REPO}/${APP_NAME}:${VERSION} \
-                  -t ${NEXUS_DOCKER_URL}/${DOCKER_REPO}/${APP_NAME}:latest .
+                  .
                 """
             }
         }
@@ -96,9 +96,7 @@ pipeline {
 
                     echo "$DOCKER_PASS" | docker login ${NEXUS_DOCKER_URL} -u "$DOCKER_USER" --password-stdin
 
-                    docker push ${NEXUS_DOCKER_URL}/${DOCKER_REPO}/${APP_NAME}:${VERSION}
-                    docker push ${NEXUS_DOCKER_URL}/${DOCKER_REPO}/${APP_NAME}:latest
-
+                    docker push ${NEXUS_DOCKER_URL}/${DOCKER_REPO}/${APP_NAME}:${VERSION}      
                     docker logout ${NEXUS_DOCKER_URL}
                     """
 
